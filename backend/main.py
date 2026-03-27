@@ -12,7 +12,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -39,6 +39,16 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            uid VARCHAR(255) PRIMARY KEY,
+            email VARCHAR(255),
+            displayName VARCHAR(255),
+            photoURL TEXT,
+            createdAt DATETIME NOT NULL
+        )
+    """)
+    conn.commit()
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
             id VARCHAR(255) PRIMARY KEY,
             nombreTarea VARCHAR(255) NOT NULL,
@@ -50,9 +60,14 @@ def init_db():
         )
     """)
     conn.commit()
-    cursor.fetchall()
     cursor.close()
     conn.close()
+
+class UserCreate(BaseModel):
+    uid: str
+    email: Optional[str] = None
+    displayName: Optional[str] = None
+    photoURL: Optional[str] = None
 
 class Task(BaseModel):
     id: Optional[str] = None
@@ -104,6 +119,16 @@ def init_tables():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                uid VARCHAR(255) PRIMARY KEY,
+                email VARCHAR(255),
+                displayName VARCHAR(255),
+                photoURL TEXT,
+                createdAt DATETIME NOT NULL
+            )
+        """)
+        conn.commit()
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
                 id VARCHAR(255) PRIMARY KEY,
                 nombreTarea VARCHAR(255) NOT NULL,
@@ -115,12 +140,50 @@ def init_tables():
             )
         """)
         conn.commit()
-        cursor.fetchall()
         cursor.close()
         conn.close()
-        return {"message": "Table created successfully"}
+        return {"message": "Tables created successfully"}
     except Exception as e:
         return {"error": str(e)}
+
+@app.post("/users", status_code=201)
+def create_or_update_user(user: UserCreate):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO users (uid, email, displayName, photoURL, createdAt)
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                email = VALUES(email),
+                displayName = VALUES(displayName),
+                photoURL = VALUES(photoURL)
+        """, (user.uid, user.email, user.displayName, user.photoURL, datetime.now()))
+        conn.commit()
+        return {"message": "User saved", "uid": user.uid}
+    except Error as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.get("/users", response_model=List[dict])
+def get_users():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM users")
+        users = cursor.fetchall()
+        for u in users:
+            for key, value in u.items():
+                if isinstance(value, datetime):
+                    u[key] = value.isoformat()
+        return users
+    except Error as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.post("/tasks", status_code=201)
 def create_task(task: Task):
