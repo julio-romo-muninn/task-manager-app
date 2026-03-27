@@ -29,10 +29,16 @@ export class AuthService {
         photoURL: result.user.photoURL
       };
 
-      this.http.post(`${this.RAILWAY_API_URL}/users`, userData).subscribe({
-        next: (res) => console.log('User mirrored to Railway:', res),
-        error: (err) => console.error('Failed to mirror user to Railway:', err)
-      });
+      try {
+        const response = await fetch(`${this.RAILWAY_API_URL}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userData)
+        });
+        console.log('User mirrored to Railway:', response.status);
+      } catch (error) {
+        console.error('Failed to mirror user to Railway:', error);
+      }
     }
 
     return result;

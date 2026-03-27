@@ -31,11 +31,17 @@ export class TasksService {
       fechaLimite: task.fechaLimite ? new Date(task.fechaLimite).toISOString() : null
     };
 
-    this.http.post(`${this.RAILWAY_API_URL}/tasks`, taskWithId).subscribe({
-      next: (res) => console.log('Task mirrored to Railway:', res),
-      error: (err) => console.error('Failed to mirror task to Railway:', err)
-    });
-
+    try {
+      const response = await fetch(`${this.RAILWAY_API_URL}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskWithId)
+      });
+      console.log('Task mirrored to Railway:', response.status);
+    } catch (error) {
+      console.error('Failed to mirror task to Railway:', error);
+    }
+    
     return docRef;
   }
 
