@@ -18,8 +18,11 @@ app.add_middleware(
 )
 
 def get_db_connection():
+    host = os.getenv("MYSQL_HOST")
+    if not host:
+        raise Exception("MYSQL_HOST environment variable not set")
     return mysql.connector.connect(
-        host=os.getenv("MYSQL_HOST"),
+        host=host,
         port=int(os.getenv("MYSQL_PORT", 3306)),
         user=os.getenv("MYSQL_USER"),
         password=os.getenv("MYSQL_PASSWORD"),
@@ -59,9 +62,17 @@ class TaskUpdate(BaseModel):
     fechaLimite: Optional[datetime] = None
     completada: Optional[bool] = None
 
+db_initialized = False
+
 @app.on_event("startup")
 def startup():
-    init_db()
+    global db_initialized
+    try:
+        init_db()
+        db_initialized = True
+    except Exception as e:
+        print(f"Warning: Could not connect to MySQL on startup: {e}")
+        print("Will retry on first request...")
 
 @app.get("/")
 def home():
