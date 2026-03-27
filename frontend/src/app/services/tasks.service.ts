@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Firestore, collection, collectionData, addDoc, updateDoc, deleteDoc, doc, CollectionReference } from '@angular/fire/firestore';
-import { Observable } from 'rxjs';
+import { Firestore, collection, collectionData, addDoc, updateDoc, deleteDoc, doc, query, where, CollectionReference } from '@angular/fire/firestore';
+import { Auth, user } from '@angular/fire/auth';
+import { Observable, of, switchMap } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { Task } from '../models/tasks.model';
 
 @Injectable({
@@ -12,14 +14,24 @@ export class TasksService {
   private tasksCollection: CollectionReference<Task>;
   private readonly RAILWAY_API_URL = 'https://task-manager-app-production-0fb2.up.railway.app';
 
-  constructor(private firestore: Firestore, private http: HttpClient) {
+  constructor(private firestore: Firestore, private http: HttpClient, private auth: Auth) {
     this.tasksCollection = collection(this.firestore, 'tasks') as CollectionReference<Task>;
   }
 
   getTasks(): Observable<Task[]> {
-    return collectionData(this.tasksCollection, {
-      idField: 'id'
-    }) as Observable<Task[]>;
+    return user(this.auth).pipe(
+      switchMap(currentUser => {
+        if (!currentUser) return of([]);
+        const q = query(this.tasksCollection, where('ownerId', '==', currentUser.uid));
+        return collectionData(q, { idField: 'id' }).pipe(
+          map(tasks => tasks.map((task: any) => ({
+            ...task,
+            fechaRegistro: task.fechaRegistro?.toDate ? task.fechaRegistro.toDate() : new Date(task.fechaRegistro),
+            fechaLimite: task.fechaLimite?.toDate ? task.fechaLimite.toDate() : new Date(task.fechaLimite)
+          })))
+        );
+      })
+    ) as Observable<Task[]>;
   }
 
   async addTask(task: Task) {
