@@ -19,14 +19,21 @@ app.add_middleware(
 
 def get_db_connection():
     host = os.getenv("MYSQLHOST")
+    port = os.getenv("MYSQLPORT")
+    user = os.getenv("MYSQLUSER")
+    password = os.getenv("MYSQLPASSWORD")
+    database = os.getenv("MYSQLDATABASE")
+    
+    print(f"Connecting to MySQL: host={host}, port={port}, user={user}, db={database}")
+    
     if not host:
         raise Exception("MYSQLHOST environment variable not set")
     return mysql.connector.connect(
         host=host,
-        port=int(os.getenv("MYSQLPORT", 3306)),
-        user=os.getenv("MYSQLUSER"),
-        password=os.getenv("MYSQLPASSWORD"),
-        database=os.getenv("MYSQLDATABASE")
+        port=int(port) if port else 3306,
+        user=user,
+        password=password,
+        database=database
     )
 
 def init_db():
@@ -77,6 +84,18 @@ def startup():
 @app.get("/")
 def home():
     return {"message": "API funcionando"}
+
+@app.get("/health")
+def health_check():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
+        conn.close()
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/tasks", status_code=201)
 def create_task(task: Task):
